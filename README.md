@@ -136,6 +136,81 @@ The orchestrator correlates findings across all analyzers to surface deeper insi
 - Efficiency and spending patterns
 - Duration and efficiency relationships
 
+## 🌐 Web Dashboard
+
+The web dashboard provides an interactive, visual interface for analyzing your usage data with 5 main pages:
+
+### Overview Page
+- Executive summary cards (total cost, tokens, sessions, averages)
+- Quick stats at a glance
+- Recent activity overview
+
+### Cost Analysis Page
+- Cost breakdown by model and provider
+- Burn rate projections (daily, weekly, monthly, annual)
+- Cost trends over time with interactive charts
+- Token cost distribution (input/output/cache)
+
+### Usage Patterns Page
+- Peak hour analysis with hourly distribution
+- Busiest days with visual highlights
+- Session duration patterns
+- Model preference by time of day
+- Usage spike detection
+
+### Efficiency Analysis Page
+- Efficiency score comparisons by model
+- Cache utilization rates
+- Cost per token analysis
+- Value leader identification
+- Actionable recommendations
+
+### Top Sessions Page
+- Sortable table of sessions
+- Filter by cost, tokens, duration
+- Session efficiency scores
+- Warning indicators for expensive or long sessions
+
+### Dashboard Features
+- 🎨 **Dark Mode**: Toggle between light and dark themes
+- 🔄 **Auto-Refresh**: Data updates every 60 seconds
+- 📱 **Responsive Design**: Works on desktop, tablet, and mobile
+- 📊 **Interactive Charts**: Powered by Chart.js
+- ⚡ **Fast**: Sub-3-second load times
+
+## 🔧 Troubleshooting
+
+### Port Already in Use
+If port 3000 is already in use, droidusage will automatically try ports 3001-3999. You can also specify a custom port:
+```bash
+droidusage --web --port 3500
+```
+
+### Browser Not Opening
+If the browser doesn't open automatically, manually navigate to the URL shown in the console (e.g., `http://localhost:3000`).
+
+### No Sessions Found
+Make sure your Factory AI sessions directory exists. Default location:
+- **macOS/Linux**: `~/.factoryai/sessions`
+- **Windows**: `%USERPROFILE%\.factoryai\sessions`
+
+Specify a custom directory:
+```bash
+droidusage daily --dir /path/to/sessions
+```
+
+### Empty or Incomplete Data
+If data looks incomplete:
+1. Check that session files are valid JSON
+2. Ensure log files exist in `~/.factoryai/logs/droid-log-single.log`
+3. Try refreshing the dashboard or re-running the CLI command
+
+### Performance Issues
+For slow analysis with many sessions (>1000):
+- The tool uses parallel batch processing (50 sessions/batch)
+- Analysis should complete in <5 seconds for 1000 sessions
+- If slower, check disk I/O and available memory
+
     ![Example of generating tasks from PRD](https://pbs.twimg.com/media/Go6FITbWkAA-RCT?format=jpg&name=medium)
 
 ### 3️⃣ Examine Your Task List

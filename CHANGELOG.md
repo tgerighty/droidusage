@@ -197,11 +197,30 @@ droidusage --web  # Try the new dashboard!
 
 ---
 
+## Testing
+
+### v2.0.0 Test Coverage
+- **177 passing tests** (32 API tests + 145 analyzer tests)
+- **API Endpoints**: All 12 endpoints fully tested
+- **Analyzers**: BaseAnalyzer, CostAnalyzer, PatternAnalyzer, EfficiencyAnalyzer, AnalysisOrchestrator
+- **Server Lifecycle**: Port selection, graceful shutdown, browser launch
+- **Error Handling**: Malformed requests, server errors, missing data
+
+### Test Commands
+```bash
+npm test                  # Run all tests
+npm test -- --coverage    # With coverage report
+npm test -- server.test   # Run specific test file
+```
+
+---
+
 ## Links
 
-- [Repository](https://github.com/yourusername/droidusage)
-- [Issues](https://github.com/yourusername/droidusage/issues)
+- [Repository](https://github.com/tgerighty/droidusage)
+- [Issues](https://github.com/tgerighty/droidusage/issues)
 - [Documentation](./README.md)
+- [NPM Package](https://www.npmjs.com/package/droidusage)
 
 ---
 
