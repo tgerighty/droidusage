@@ -1,516 +1,283 @@
-# Droid Usage Analyzer
+# 🤖 Droidusage - Factory AI Usage Analytics
 
-A powerful CLI tool for analyzing Droid AI usage from local session files, inspired by ccusage for Claude Code. Get detailed insights into your AI usage patterns, costs, and session statistics.
+**Comprehensive usage analytics and cost tracking for Factory AI sessions**
 
-## 🚀 Features
+Droidusage is a powerful CLI tool and web dashboard for analyzing Factory AI usage patterns, costs, and efficiency. Track your AI spending, identify optimization opportunities, and gain deep insights into your usage patterns.
 
-- 📊 **Daily Reports**: View token usage and costs aggregated by date
-- 💬 **Session Reports**: Detailed usage grouped by conversation sessions
-- 🤖 **Model Tracking**: See which AI models you're using (Claude, GPT-4, etc.)
-- 📈 **Beautiful Tables**: Colorful table-formatted display with automatic responsive layout
-- 📄 **JSON Output**: Export data in structured JSON format for integrations
-- 📅 **Date Filtering**: Filter reports by date range using `--since` and `--until`
-- 💰 **Cost Tracking**: Shows costs in USD for each day/session with accurate pricing
-- 🔄 **Cache Token Support**: Tracks and displays cache creation and cache read tokens separately
-- ⏱️ **Active Time Tracking**: Shows total active time for completed sessions (historical data)
-- 🔍 **Session Details**: Individual session breakdowns with timestamps and model information
-- 🎯 **Blocks Analysis**: Group sessions into 5-hour rolling windows for rate limit monitoring
-- 💬 **Prompt Counting**: Track actual user prompts sent (excluding automated tool results)
+## 🌟 Features
+
+### 📊 **Comprehensive Analysis**
+- **Cost Analysis**: Track spending by model and provider, calculate burn rates, identify cost optimization opportunities
+- **Usage Patterns**: Discover peak hours, busiest days, session duration patterns, and usage spikes
+- **Efficiency Metrics**: Calculate efficiency scores, analyze cache utilization, identify value leaders
+- **Trend Analysis**: Compare current vs previous periods with percentage changes and trend indicators
+
+### 💻 **Dual Interface**
+- **CLI**: Powerful command-line interface with formatted tables and charts
+- **Web Dashboard**: Modern, responsive web interface with auto-refresh and interactive visualizations
+
+### 🚀 **Performance Optimized**
+- Parallel batch processing for 1000+ sessions
+- Smart log caching for faster analysis
+- In-memory aggregation for sub-5-second analysis times
+
+Stop manual spreadsheet tracking and start making data-driven decisions about your AI usage!
 
 ## 📦 Installation
 
-### Prerequisites
-- Node.js 14.0.0 or higher
-- Factory AI installed (with session data in `~/.factory/sessions/`)
-
-### Quick Install
-
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd droidusage
-
-# Install dependencies
-npm install
-
-# Link for local usage
-npm link
-
-# Or install globally for easier access
-npm install -g .
+npm install -g droidusage
 ```
 
-### Verify Installation
-
+Or use directly with npx:
 ```bash
-# Check that the tool is working
-droidusage --help
+npx droidusage
 ```
 
-## 🎯 Usage
+## 🚀 Quick Start
+
+### CLI Usage
+
+```bash
+# View daily usage summary
+droidusage daily
+
+# View with trends compared to previous period
+droidusage daily --trends
+
+# Analyze top expensive sessions
+droidusage top --by cost --limit 10
+
+# Run comprehensive analysis
+droidusage analyze --all
+
+# Filter by date range
+droidusage daily --since 2024-01-01 --until 2024-01-31
+```
+
+### Web Dashboard
+
+```bash
+# Launch interactive web dashboard
+droidusage --web
+
+# Specify custom port
+droidusage --web --port 3500
+```
+
+The dashboard will automatically open in your browser at `http://localhost:3000`
+
+## 📖 Commands
 
 ### Basic Commands
 
-```bash
-# Daily report (default) - Shows usage aggregated by day
-droidusage daily
+| Command | Description |
+|---------|-------------|
+| `droidusage daily` | Show daily usage grouped by model |
+| `droidusage sessions` | List all sessions with details |
+| `droidusage top` | Show top sessions by cost, tokens, or duration |
+| `droidusage analyze` | Run comprehensive analysis |
+| `droidusage --web` | Launch web dashboard |
 
-# Session report - Shows individual session details
-droidusage session
-
-# Blocks report - Groups sessions into 5-hour rolling windows
-droidusage daily --blocks
-
-# Both commands accept the same options
-droidusage [daily|session] [options]
-```
-
-### Command Options
-
-| Option | Description | Example |
-|--------|-------------|---------|
-| `--sessions-dir <path>` | Path to Factory sessions directory | `--sessions-dir /custom/path/.factory/sessions` |
-| `--since <date>` | Filter sessions from this date (inclusive) | `--since 2025-10-01` |
-| `--until <date>` | Filter sessions until this date (inclusive) | `--until 2025-10-31` |
-| `--blocks` | Group sessions into 5-hour rolling windows for rate limit analysis | `--blocks` |
-| `--json` | Output results in JSON format instead of tables | `--json` |
-| `--help` | Show help information | `--help` |
-| `--version` | Show version number | `--version` |
-
-### Usage Examples
+### Analysis Commands
 
 ```bash
-# Basic daily usage report
-droidusage daily
+# Cost analysis
+droidusage analyze --cost
 
-# Show sessions for specific date range
-droidusage daily --since 2025-10-01 --until 2025-10-07
+# Usage pattern analysis
+droidusage analyze --patterns
 
-# Export data as JSON for external processing
-droidusage session --json
+# Efficiency analysis
+droidusage analyze --efficiency
 
-# Analyze rate limits with 5-hour blocks
-droidusage daily --blocks
-
-# Check recent 5-hour windows for usage patterns
-droidusage session --blocks --since 2025-10-08
-
-# Analyze specific time period
-droidusage daily --since 2025-10-08
-
-# Use custom sessions directory
-droidusage daily --sessions-dir /backup/.factory/sessions
-
-# Get detailed session information for the last week
-droidusage session --since $(date -d '7 days ago' +%Y-%m-%d)
+# Run all analyses
+droidusage analyze --all
 ```
 
-## 📊 What It Analyzes
+### Advanced Options
 
-The tool analyzes Factory AI session data from two types of files:
+| Option | Description |
+|--------|-------------|
+| `--since <date>` | Filter sessions since date (YYYY-MM-DD) |
+| `--until <date>` | Filter sessions until date (YYYY-MM-DD) |
+| `--trends` | Show trend analysis vs previous period |
+| `--blocks` | Group sessions into 5-hour blocks |
+| `--by <criteria>` | Sort by: cost, tokens, duration, inefficient, outliers |
+| `--limit <number>` | Number of results to show |
+| `--json` | Output as JSON |
 
-### Data Sources
-- **Session Logs**: `[uuid].jsonl` - Contains conversation messages, timestamps, and interactions
-- **Session Settings**: `[uuid].settings.json` - Contains aggregated token usage and metadata
+## 📊 Analysis Features
 
-### Metrics Tracked
-- **Input Tokens**: Tokens sent to the AI model
-- **Output Tokens**: Tokens generated by the AI model
-- **Cache Creation Tokens**: Tokens written to cache
-- **Cache Read Tokens**: Tokens read from cache (more cost-effective)
-- **Thinking Tokens**: Tokens used for internal reasoning (Claude models)
-- **User Prompts**: Number of actual user messages sent (excludes automated tool results)
-- **Active Time**: Duration of active AI interaction per session
-- **Model Information**: Which AI model was used for each session
-- **Cost Calculation**: Monetary cost based on current model pricing
+### Cost Analysis
+- **Burn Rate Tracking**: Daily, weekly, monthly, and annual projections
+- **Model Comparison**: Cost per million tokens by model
+- **Provider Breakdown**: Spending by AI provider
+- **Cost Distribution**: Input, output, cache read, and cache write costs
+- **Trend Detection**: Identify cost spikes and patterns
 
-## 📈 Output Examples
+### Pattern Analysis
+- **Peak Hours**: Identify busiest times of day
+- **Day of Week Patterns**: Find busiest days
+- **Session Duration**: Analyze session length patterns and anomalies
+- **Model Preferences**: See which models are used when
+- **Usage Spikes**: Detect days with unusual activity
 
-### Daily Report Format
+### Efficiency Analysis
+- **Efficiency Scores**: 0-100 score based on output per dollar
+- **Cache Utilization**: Track prompt cache hit rates
+- **Cost Per Token**: Compare models and find most efficient
+- **Value Leaders**: Identify best-performing sessions
+- **Recommendations**: Get actionable optimization suggestions
 
-```
-┌────────────┬──────────────────────────────┬───────┬────────┬──────────────┬────────────┬──────────────┬────────────┐
-│ Date       │ Models                       │ Input │ Output │ Cache Create │ Cache Read │ Total Tokens │ Cost (USD) │
-├────────────┼──────────────────────────────┼───────┼────────┼──────────────┼────────────┼──────────────┼────────────┤
-│ 2025-10-04 │ • claude-3-5-sonnet-20241022 │ 2,460 │ 2,378  │ 0            │ 8,320      │ 13,158       │ $0.04      │
-│            │ • gpt-4o                     │       │        │              │            │              │            │
-├────────────┼──────────────────────────────┼───────┼────────┼──────────────┼────────────┼──────────────┼────────────┤
-│ 2025-10-08 │ • claude-3-5-sonnet-20241022 │ 0     │ 56,727 │ 0            │ 0          │ 56,727       │ $0.85      │
-└────────────┴──────────────────────────────┴───────┴────────┴──────────────┴────────────┴──────────────┴────────────┘
+### Cross-Analyzer Insights
+The orchestrator correlates findings across all analyzers to surface deeper insights:
+- Cost and timing correlations
+- Efficiency and spending patterns
+- Duration and efficiency relationships
 
-Summary:
-  Total Sessions: 4
-  Total Tokens: 115,212
-  Total Cost: $1.57
-  Total Active Time: 2h
-```
+    ![Example of generating tasks from PRD](https://pbs.twimg.com/media/Go6FITbWkAA-RCT?format=jpg&name=medium)
 
-### Session Report Format
+### 3️⃣ Examine Your Task List
 
-```
-┌─────────────┬──────────────────┬────────────────────────────┬───────┬────────┬───────┬────────┬───────┬─────────────┐
-│ Session ID  │ Date             │ Model                      │ Input │ Output │ Cache │ Total  │ Cost  │ Active Time │
-├─────────────┼──────────────────┼────────────────────────────┼───────┼────────┼───────┼────────┼───────┼─────────────┤
-│ 545fbc97... │ 2025-10-08 09:46 │ claude-3-5-sonnet-20241022 │ 0     │ 47,622 │ 0     │ 47,622 │ $0.71 │ 43m         │
-├─────────────┼──────────────────┼────────────────────────────┼───────┼────────┼───────┼────────┼───────┼─────────────┤
-│ 65109a7e... │ 2025-10-04 23:51 │ gpt-4o                     │ 2,460 │ 401    │ 8,320 │ 11,181 │ $0.01 │ 7s          │
-└─────────────┴──────────────────┴────────────────────────────┴───────┴────────┴───────┴────────┴───────┴─────────────┘
+You'll now have a well-structured task list, often with tasks and sub-tasks, ready for the AI to start working on. This provides a clear roadmap for implementation.
 
-Summary:
-  Total Sessions: 12
-  Total Tokens: 115,311
-  Total Cost: $1.57
-  Total Active Time: 2h
-```
+![Example of a generated task list](https://pbs.twimg.com/media/Go6GNuOWsAEcSDm?format=jpg&name=medium)
 
-### Blocks Report Format
+### 4️⃣ Instruct the AI to Work Through Tasks (and Mark Completion)
 
-```
-┌────────────┬───────────────┬──────────────────────┬──────────┬─────────┬───────────┬──────────────┬────────────┬──────────────┬─────────┬────────────┐
-│ Date       │ Time Block    │ Model(s)             │ Sessions │ Input   │ Output    │ Cache Create │ Cache Read │ Total Tokens │ Prompts │ Cost (USD) │
-├────────────┼───────────────┼──────────────────────┼──────────┼─────────┼───────────┼──────────────┼────────────┼──────────────┼─────────┼────────────┤
-│ 2025-10-04 │ 23:51 - 04:51 │ glm-4.6, gpt-5-codex │ 2        │ 2,460   │ 596,699   │ 0            │ 8,320      │ 607,479      │ 6       │ $4.49      │
-├────────────┼───────────────┼──────────────────────┼──────────┼─────────┼───────────┼──────────────┼────────────┼──────────────┼─────────┼────────────┤
-│ 2025-10-06 │ 05:51 - 10:51 │ glm-4.6              │ 1        │ 0       │ 296,172   │ 0            │ 0          │ 296,172      │ 1       │ $0.00      │
-├────────────┼───────────────┼──────────────────────┼──────────┼─────────┼───────────┼──────────────┼────────────┼──────────────┼─────────┼────────────┤
-│ 2025-10-08 │ 07:51 - 12:51 │ glm-4.6              │ 4        │ 0       │ 818,783   │ 0            │ 0          │ 818,783      │ 21      │ $0.00      │
-└────────────┴───────────────┴──────────────────────┴──────────┴─────────┴───────────┴──────────────┴────────────┴──────────────┴─────────┴────────────┘
+To ensure methodical progress and allow for verification, we'll use `process-task-list.md`. This command instructs the AI to focus on one task at a time and wait for your go-ahead before moving to the next.
 
-Summary:
-  Total Sessions: 7
-  Total Tokens: 1,722,334
-  Total Prompts: 28
-  Total Cost: $4.49
-  Total Active Time: 1h
-```
+1. Create or ensure you have the `process-task-list.md` file accessible.
+2. In your AI tool, tell the AI to start with the first task (e.g., `1.1`):
 
-### JSON Output Format
+    ```text
+    Please start on task 1.1 and use @process-task-list.md
+    ```
+    *(Important: You only need to reference `@process-task-list.md` for the *first* task. The instructions within it guide the AI for subsequent tasks.)*
 
-```json
-{
-  "type": "daily",
-  "data": [
-    {
-      "date": "2025-10-08",
-      "models": ["claude-3-5-sonnet-20241022"],
-      "inputTokens": 0,
-      "outputTokens": 56727,
-      "cacheCreationTokens": 0,
-      "cacheReadTokens": 0,
-      "totalTokens": 56727,
-      "userInteractions": 23,
-      "cost": 0.85,
-      "sessions": [...]
-    }
-  ],
-  "summary": {
-    "totalSessions": 4,
-    "totalTokens": 115212,
-    "totalCost": 1.57,
-    "totalActiveTime": 7200000,
-    "totalPrompts": 116
-  }
-}
-```
+    The AI will attempt the task and then prompt you to review.
 
-## 💰 Pricing Information
+    ![Example of starting on a task with process-task-list.md](https://pbs.twimg.com/media/Go6I41KWcAAAlHc?format=jpg&name=medium)
 
-The tool calculates costs based on current AI model pricing (subject to change):
+### 5️⃣ Review, Approve, and Progress ✅
 
-### Anthropic Claude Models
-| Model | Input | Output | Cache Read | Cache Write |
-|-------|--------|--------|-------------|-------------|
-| Claude 3.5 Sonnet | $3.00/M | $15.00/M | $0.30/M | $3.75/M |
-| Claude 3.5 Haiku | $0.80/M | $4.00/M | $0.08/M | $1.00/M |
+As the AI completes each task, you review the changes.
 
-### OpenAI GPT Models
-| Model | Input | Output | Cache Read | Cache Write |
-|-------|--------|--------|-------------|-------------|
-| GPT-4o | $2.50/M | $10.00/M | $0.125/M | $2.50/M |
-| GPT-4o Mini | $0.15/M | $0.60/M | $0.075/M | $0.30/M |
+* If the changes are good, simply reply with "yes" (or a similar affirmative) to instruct the AI to mark the task complete and move to the next one.
+* If changes are needed, provide feedback to the AI to correct the current task before moving on.
 
-*Prices are shown per million tokens and are subject to change by providers.*
+You'll see a satisfying list of completed items grow, providing a clear visual of your feature coming to life!
 
-## 🔧 Advanced Usage
+![Example of a progressing task list with completed items](https://pbs.twimg.com/media/Go6KrXZWkAA_UuX?format=jpg&name=medium)
 
-### Rate Limit Analysis with Blocks
+While it's not always perfect, this method has proven to be a very reliable way to build out larger features with AI assistance.
 
-The `--blocks` option groups sessions into **5-hour rolling windows** starting from your first session, making it easy to monitor usage against rate limits:
+### Video Demonstration 🎥
 
-```bash
-# Monitor rate limits for models with 200 prompts per 5 hours
-droidusage daily --blocks
+If you'd like to see this in action, I demonstrated it on [Claire Vo's "How I AI" podcast](https://www.youtube.com/watch?v=fD4ktSkNCw4).
 
-# Check if you're approaching limits
-droidusage daily --blocks --json | jq -r '.data[] | select(.userPrompts > 150)'
-```
+![Demonstration of AI Dev Tasks on How I AI Podcast](https://img.youtube.com/vi/fD4ktSkNCw4/maxresdefault.jpg)
 
-**Block Analysis Benefits:**
-- **Rolling Windows**: 5-hour periods that start from your first message (not midnight)
-- **Multiple Models**: See which models are used in each time block
-- **Prompt Counting**: Track actual user prompts to stay within limits
-- **Cost Tracking**: Monitor costs during high-usage periods
+## 🗂️ Files in this Repository
 
-### Integration with Scripts
+* **`create-prd.md`**: Guides the AI in generating a Product Requirement Document for your feature.
+* **`generate-tasks.md`**: Takes a PRD markdown file as input and helps the AI break it down into a detailed, step-by-step implementation task list.
+* **`process-task-list.md`**: Instructs the AI on how to process the generated task list, tackling one task at a time and waiting for your approval before proceeding. (This file also contains logic for the AI to mark tasks as complete).
 
-```bash
-#!/bin/bash
-# Get daily cost report
-COST_REPORT=$(droidusage daily --json)
+## 🌟 Benefits
 
-# Extract total cost
-TOTAL_COST=$(echo $COST_REPORT | jq -r '.summary.totalCost')
+* **Structured Development:** Enforces a clear process from idea to code.
+* **Step-by-Step Verification:** Allows you to review and approve AI-generated code at each small step, ensuring quality and control.
+* **Manages Complexity:** Breaks down large features into smaller, digestible tasks for the AI, reducing the chance of it getting lost or generating overly complex, incorrect code.
+* **Improved Reliability:** Offers a more dependable approach to leveraging AI for significant development work compared to single, large prompts.
+* **Clear Progress Tracking:** Provides a visual representation of completed tasks, making it easy to see how much has been done and what's next.
 
-# Send alert if cost exceeds threshold
-if (( $(echo "$TOTAL_COST > 10.0" | bc -l) )); then
-    echo "⚠️  Daily AI usage cost: $${TOTAL_COST} exceeds $10.00"
-fi
+## 🛠️ How to Use
 
-# Check prompt usage against rate limits
-BLOCKS_REPORT=$(droidusage daily --blocks --json)
-HIGH_USAGE_BLOCKS=$(echo $BLOCKS_REPORT | jq -r '.data[] | select(.userPrompts > 180)')
-if [ -n "$HIGH_USAGE_BLOCKS" ]; then
-    echo "⚠️  Approaching rate limit in some 5-hour blocks"
-fi
-```
+1. **Clone or Download:** Get these `.md` files into your project or a central location where your AI tool can access them.
+   ```bash
+   git clone https://github.com/snarktank/ai-dev-tasks.git
+   ```
+2. **Follow the Workflow:** Systematically use the `.md` files in your AI assistant as described in the workflow above.
+3. **Adapt and Iterate:**
+    * Feel free to modify the prompts within the `.md` files to better suit your specific needs or coding style.
+    * If the AI struggles with a task, try rephrasing your initial feature description or breaking down tasks even further.
 
-### Monitoring Usage
+## Tool-Specific Instructions
 
-```bash
-# Create a daily usage log
-echo "$(date): $(droidusage daily --json | jq -r '.summary.totalCost')" >> usage_log.txt
+### Cursor
 
-# Weekly summary with blocks
-droidusage daily --since $(date -d '7 days ago' +%Y-%m-%d) --json
+Cursor users can follow the workflow described above, using the `.md` files directly in the Agent chat:
 
-# Rate limit monitoring
-droidusage daily --blocks --since $(date -d '24 hours ago' +%Y-%m-%d)
-```
+1. Ensure you have the files from this repository accessible
+2. In Cursor's Agent chat, reference files with `@` (e.g., `@create-prd.md`)
+3. Follow the 5-step workflow as outlined above
+4. **MAX Mode for PRDs:** Using MAX mode in Cursor for PRD creation can yield more thorough results if your budget supports it
 
-## 🐛 Troubleshooting
+### Claude Code
 
-### Common Issues
+To use these tools with Claude Code:
 
-**"No session data found"**
-- Ensure Factory AI has been used and sessions exist
-- Check that `~/.factory/sessions/` directory exists and contains files
-- Verify permissions on the sessions directory
+1. **Copy files to your repo**: Copy the three `.md` files to a subdirectory in your project (e.g., `/ai-dev-tasks`)
 
-**"Cannot read sessions directory"**
-- Check the path provided with `--sessions-dir`
-- Ensure the directory is accessible and readable
-- Verify proper file permissions
+2. **Reference in CLAUDE.md**: Add these lines to your project's `./CLAUDE.md` file:
+   ```
+   # AI Dev Tasks
+   Use these files when I request structured feature development using PRDs:
+   /ai-dev-tasks/create-prd.md
+   /ai-dev-tasks/generate-tasks.md
+   /ai-dev-tasks/process-task-list.md
+   ```
 
-**Empty token counts**
-- Some sessions may not have token usage recorded yet
-- Sessions with no AI interactions will show 0 tokens
-- Check if the session files are complete
+3. **Create custom commands** (optional): For easier access, create these files in `.claude/commands/`:
+   - `.claude/commands/create-prd.md` with content:
+     ```
+     Please use the structured workflow in /ai-dev-tasks/create-prd.md to help me create a PRD for a new feature.
+     ```
+   - `.claude/commands/generate-tasks.md` with content:
+     ```
+     Please generate tasks from the PRD using /ai-dev-tasks/generate-tasks.md
+     If not explicitly told which PRD to use, generate a list of PRDs and ask the user to select one under `/tasks` or create a new one using `create-prd.md`:
+     - assume it's stored under `/tasks` and has a filename starting with `[n]-prd-` (e.g., `0001-prd-[name].md`)
+     - it should not already have a corresponding task list in `/tasks` (e.g., `tasks-0001-prd-[name].md`)
+     - **always** ask the user to confirm the PRD file name before proceeding
+     Make sure to provide options in number lists so I can respond easily (if multiple options).
+     ```
+   - `.claude/commands/process-task-list.md` with content:
+     ```
+     Please process the task list using /ai-dev-tasks/process-task-list.md
+     ```
 
-**Inaccurate prompt counts**
-- The tool counts only actual user messages, not tool results
-- System messages and automated responses are excluded
-- This provides accurate tracking for rate limit analysis
+   Make sure to restart Claude Code after adding these files (`/exit`).
+   Then use commands like `/create-prd` to quickly start the workflow.
+   Note: This setup can also be adopted for a global level across all your projects, please refer to the Claude Code documentation [here](https://docs.anthropic.com/en/docs/claude-code/memory) and [here](https://docs.anthropic.com/en/docs/claude-code/common-workflows#create-personal-slash-commands).
 
-### Debug Mode
+### Other Tools
 
-Set the `DEBUG` environment variable for detailed error information:
+For other AI-powered IDEs or CLIs:
 
-```bash
-DEBUG=1 ./bin/factory-usage.js daily
-```
+1. Copy the `.md` files to your project
+2. Reference them according to your tool's documentation
+3. Follow the same workflow principles
+
+## 💡 Tips for Success
+
+* **Be Specific:** The more context and clear instructions you provide (both in your initial feature description and any clarifications), the better the AI's output will be.
+* **Use a Capable Model:** The free version of Cursor currently uses less capable AI models that often struggle to follow the structured instructions in this workflow. For best results, consider upgrading to the Pro plan to ensure consistent, accurate task execution.
+* **MAX Mode for PRDs:** As mentioned, using MAX mode in Cursor for PRD creation (`create-prd.mdc`) can yield more thorough and higher-quality results if your budget supports it.
+* **Correct File Tagging:** Always ensure you're accurately tagging the PRD filename (e.g., `@MyFeature-PRD.md`) when generating tasks.
+* **Patience and Iteration:** AI is a powerful tool, but it's not magic. Be prepared to guide, correct, and iterate. This workflow is designed to make that iteration process smoother.
 
 ## 🤝 Contributing
 
-We welcome contributions! Here's how to get started:
+Got ideas to improve these `.md` files or have new ones that fit this workflow? Contributions are welcome!
 
-1. **Create a feature branch**: `git checkout -b feature/amazing-feature`
-2. **Make your changes** and add tests if applicable
-3. **Ensure everything works**: `npm test`
-4. **Commit your changes**: `git commit -m 'Add amazing feature'`
-5. **Share your changes** with the community
+Please feel free to:
 
-### Development Setup
-
-```bash
-# Clone the repository
-git clone <repository-url>
-cd droidusage
-
-# Install dependencies
-npm install
-
-# Run tests
-npm test
-
-# Link for local development
-npm link
-```
-
-## 🧪 Testing
-
-This project includes a comprehensive test suite to ensure reliability and correctness of the usage analysis functionality.
-
-### Running Tests
-
-```bash
-# Run all tests
-npm test
-
-# Run tests in watch mode (re-runs on file changes)
-npm run test:watch
-
-# Run tests with coverage report
-npm run test:coverage
-
-# Run specific test file
-npm test -- __tests__/analyzer.test.js
-
-# Run tests matching a pattern
-npm test -- --testNamePattern="pricing"
-```
-
-### Test Coverage
-
-The test suite provides **64.92% code coverage** and includes:
-
-- **40 test cases** covering all major functionality
-- **Unit tests** for individual methods and functions
-- **Integration tests** for end-to-end workflows
-- **Error handling tests** for edge cases and failure scenarios
-
-### Test Structure
-
-```
-__tests__/
-├── analyzer.test.js      # Core functionality tests
-├── parsing.test.js       # Log parsing and data extraction tests
-└── integration.test.js   # End-to-end workflow tests
-```
-
-### What's Tested
-
-✅ **Core Functionality**
-- Pricing configuration for all providers (GLM, GPT-5, Claude)
-- Model name normalization and detection
-- Cost calculations with real pricing data
-- Number/cost/time formatting utilities
-
-✅ **Data Processing**
-- Token aggregation from multiple sources
-- Session grouping by date and model
-- Log parsing and timestamp extraction
-- Model inference from session data
-
-✅ **Error Handling**
-- Corrupted or invalid JSON files
-- Missing session files or directories
-- Invalid timestamps and malformed data
-- Empty or incomplete session data
-
-✅ **Integration Scenarios**
-- Multi-session daily reports
-- Mixed provider usage patterns
-- Real-world usage workflows
-- JSON output generation
-
-### Test Data
-
-Tests use realistic sample data including:
-- Sample Factory session files (`*.settings.json`)
-- Simulated log entries (`droid-log-single.log`)
-- Various model usage patterns and token data
-- Edge cases and error scenarios
-
-### Coverage Report
-
-Running `npm run test:coverage` generates a detailed coverage report in the `coverage/` directory:
-- **HTML report**: Open `coverage/lcov-report/index.html` in your browser
-- **Text summary**: Shows percentage coverage for files, functions, branches, and lines
-- **LCOV format**: For integration with CI/CD systems
-
-### Writing New Tests
-
-When adding new features, please include tests:
-
-```javascript
-// Example test structure
-describe('New Feature', () => {
-  test('should handle new functionality correctly', () => {
-    // Arrange
-    const input = createTestData();
-    
-    // Act
-    const result = analyzer.newFeature(input);
-    
-    // Assert
-    expect(result).toBeDefined();
-    expect(result.someProperty).toBe(expectedValue);
-  });
-});
-```
-
-### Test Best Practices
-
-- **Test naming**: Use descriptive test names that explain what's being tested
-- **Arrange-Act-Assert**: Structure tests clearly with setup, execution, and verification
-- **Edge cases**: Test both happy paths and error conditions
-- **Realistic data**: Use sample data that reflects real-world usage
-- **Isolation**: Each test should be independent and not rely on other tests
-
-### Continuous Integration
-
-The test suite is designed to run in CI/CD environments:
-- Fast execution (< 1 second)
-- No external dependencies required
-- Self-contained test data
-- Clear pass/fail output
-
-For more details, see the [Jest documentation](https://jestjs.io/docs/getting-started).
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-### MIT License Summary
-
-```
-MIT License
-
-Copyright (c) 2025 Droid Usage Analyzer
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
-## 🙏 Acknowledgments
-
-- Inspired by [ccusage](https://github.com/ryoppippi/ccusage) for Claude Code
-- Built for the Droid AI community
-- Thanks to all contributors and users who help improve this tool
-
-## 📞 Support
-
-If you encounter any issues or have questions:
-
-1. Check the [Troubleshooting](#-troubleshooting) section above
-2. Report issues with detailed information about your problem
-3. Include the output with `DEBUG=1` for better assistance
+* Open an issue to discuss changes or suggest new features.
+* Submit a pull request with your enhancements.
 
 ---
 
-**Happy analyzing! 🚀**
+Happy AI-assisted developing!
