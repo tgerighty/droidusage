@@ -8,6 +8,7 @@ class FactoryUsageAnalyzer {
   constructor(sessionsDir) {
     this.sessionsDir = sessionsDir;
     this.logsDir = path.join(path.dirname(sessionsDir), 'logs');
+    this.batchSize = 10; // Number of sessions to process in parallel (reduced to avoid memory issues)
     this.pricing = {
       anthropic: {
         'claude-3-5-sonnet-20241022': {
@@ -392,7 +393,7 @@ class FactoryUsageAnalyzer {
     return timestampMatch ? new Date(timestampMatch[1]) : null;
   }
 
-  async parseSession(sessionId) {
+  async parseSession(sessionId, countPrompts = true) {
     try {
       const settingsPath = path.join(this.sessionsDir, `${sessionId}.settings.json`);
       const logPath = path.join(this.sessionsDir, `${sessionId}.jsonl`);
@@ -507,8 +508,10 @@ class FactoryUsageAnalyzer {
         aggregatedOutputTokens = settings.tokenUsage?.outputTokens || 0;
       }
       
-      // Count user prompts from session conversation file
-      userPrompts = await this.countUserPromptsInSession(sessionId);
+      // Count user prompts from session conversation file (only if needed)
+      if (countPrompts) {
+        userPrompts = await this.countUserPromptsInSession(sessionId);
+      }
 
       // Parse date with error handling
       let parsedDate = null;
@@ -542,6 +545,41 @@ class FactoryUsageAnalyzer {
       console.warn(`Warning: Could not parse session ${sessionId}: ${error.message}`);
       return null;
     }
+  }
+
+  // NEW: Parse sessions in parallel batches for better performance
+  async parseSessionsBatch(sessionIds, countPrompts = false) {
+    const sessions = [];
+    const batchSize = this.batchSize;
+    const totalBatches = Math.ceil(sessionIds.length / batchSize);
+    
+    // Show progress for large datasets
+    const showProgress = sessionIds.length > 100 && !process.env.NODE_ENV?.includes('test');
+    
+    // Process in batches to avoid overwhelming memory
+    for (let i = 0; i < sessionIds.length; i += batchSize) {
+      const batch = sessionIds.slice(i, i + batchSize);
+      const currentBatch = Math.floor(i / batchSize) + 1;
+      
+      if (showProgress) {
+        const progress = Math.round((currentBatch / totalBatches) * 100);
+        process.stderr.write(`\rProcessing sessions: ${progress}% (${i + batch.length}/${sessionIds.length})`);
+      }
+      
+      // Parse this batch in parallel
+      const batchResults = await Promise.all(
+        batch.map(sessionId => this.parseSession(sessionId, countPrompts))
+      );
+      
+      // Filter out null results and add to sessions array
+      sessions.push(...batchResults.filter(session => session !== null));
+    }
+    
+    if (showProgress) {
+      process.stderr.write(`\rProcessing sessions: 100% (${sessionIds.length}/${sessionIds.length}) ✓\n`);
+    }
+    
+    return sessions;
   }
 
   filterSessionsByDate(sessions, since, until) {
@@ -637,14 +675,9 @@ class FactoryUsageAnalyzer {
 
   async getDailyUsage(options = {}) {
     const sessionIds = await this.getSessionFiles();
-    const sessions = [];
     
-    for (const sessionId of sessionIds) {
-      const session = await this.parseSession(sessionId);
-      if (session) {
-        sessions.push(session);
-      }
-    }
+    // Process sessions in parallel batches (don't need prompt counting for daily report)
+    const sessions = await this.parseSessionsBatch(sessionIds, false);
     
     const filteredSessions = this.filterSessionsByDate(sessions, options.since, options.until);
     const dailyData = this.groupSessionsByDate(filteredSessions);
@@ -658,14 +691,9 @@ class FactoryUsageAnalyzer {
 
   async getSessionUsage(options = {}) {
     const sessionIds = await this.getSessionFiles();
-    const sessions = [];
     
-    for (const sessionId of sessionIds) {
-      const session = await this.parseSession(sessionId);
-      if (session) {
-        sessions.push(session);
-      }
-    }
+    // Process sessions in parallel batches (don't need prompt counting for session report)
+    const sessions = await this.parseSessionsBatch(sessionIds, false);
     
     const filteredSessions = this.filterSessionsByDate(sessions, options.since, options.until);
     
@@ -801,14 +829,10 @@ class FactoryUsageAnalyzer {
 
   async getBlockUsage(options = {}) {
     const sessionIds = await this.getSessionFiles();
-    const sessions = [];
-
-    for (const sessionId of sessionIds) {
-      const session = await this.parseSession(sessionId);
-      if (session && session.date) {
-        sessions.push(session);
-      }
-    }
+    
+    // Process sessions in parallel batches (WITH prompt counting for blocks report)
+    const allSessions = await this.parseSessionsBatch(sessionIds, true);
+    const sessions = allSessions.filter(session => session && session.date);
 
     const filteredSessions = this.filterSessionsByDate(sessions, options.since, options.until);
     const blockData = this.groupSessionsByBlock(filteredSessions);
