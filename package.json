@@ -1,7 +1,7 @@
 {
   "name": "droidusage",
-  "version": "1.2.0",
-  "description": "A CLI tool for analyzing Factory AI usage from local session files - optimized for large datasets",
+  "version": "2.0.0",
+  "description": "A CLI tool for analyzing Factory AI usage from local session files",
   "main": "index.js",
   "bin": {
     "droidusage": "./bin/droidusage.js"
@@ -27,13 +27,20 @@
     "chalk": "^4.1.2",
     "cli-table3": "^0.6.3",
     "commander": "^9.4.1",
+    "compression": "^1.8.1",
+    "cors": "^2.8.5",
     "date-fns": "^2.29.3",
-    "droidusage": "^1.1.0"
+    "express": "^4.21.2",
+    "open": "^9.1.0"
   },
   "engines": {
     "node": ">=14.0.0"
   },
   "devDependencies": {
-    "jest": "^30.2.0"
+    "autoprefixer": "^10.4.21",
+    "jest": "^30.2.0",
+    "postcss": "^8.5.6",
+    "supertest": "^7.1.4",
+    "tailwindcss": "^3.4.18"
   }
 }

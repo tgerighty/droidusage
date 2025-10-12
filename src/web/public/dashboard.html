@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Droidusage Analytics Dashboard</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900">
+  <!-- Navigation Sidebar -->
+  <div class="flex h-screen">
+    <aside class="w-64 bg-white dark:bg-gray-800 shadow-lg">
+      <div class="p-6">
+        <h1 class="text-2xl font-bold text-gray-800 dark:text-white">🤖 Droidusage</h1>
+        <p class="text-sm text-gray-600 dark:text-gray-400">Analytics Dashboard</p>
+      </div>
+      
+      <nav class="mt-6">
+        <a href="#overview" class="nav-link active" data-page="overview">
+          <span class="icon">📊</span>
+          <span>Overview</span>
+        </a>
+        <a href="#cost" class="nav-link" data-page="cost">
+          <span class="icon">💰</span>
+          <span>Cost Analysis</span>
+        </a>
+        <a href="#patterns" class="nav-link" data-page="patterns">
+          <span class="icon">📈</span>
+          <span>Usage Patterns</span>
+        </a>
+        <a href="#efficiency" class="nav-link" data-page="efficiency">
+          <span class="icon">⚡</span>
+          <span>Efficiency</span>
+        </a>
+        <a href="#top-sessions" class="nav-link" data-page="top-sessions">
+          <span class="icon">🏆</span>
+          <span>Top Sessions</span>
+        </a>
+      </nav>
+
+      <div class="absolute bottom-0 w-64 p-6 border-t border-gray-200 dark:border-gray-700">
+        <button id="themeToggle" class="btn-secondary w-full text-sm">
+          🌙 Toggle Theme
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto">
+      <!-- Header -->
+      <header class="bg-white dark:bg-gray-800 shadow-sm">
+        <div class="px-8 py-4 flex items-center justify-between">
+          <div>
+            <h2 id="pageTitle" class="text-2xl font-bold text-gray-800 dark:text-white">Overview</h2>
+            <p id="pageSubtitle" class="text-sm text-gray-600 dark:text-gray-400">Real-time usage analytics</p>
+          </div>
+          <div class="flex items-center space-x-4">
+            <button id="refreshBtn" class="btn-primary">
+              <span id="refreshIcon">🔄</span> Refresh
+            </button>
+            <span id="lastUpdated" class="text-sm text-gray-600 dark:text-gray-400">Loading...</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Content Area -->
+      <div class="p-8">
+        <div id="content">
+          <!-- Dynamic content loads here -->
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <style>
+    .nav-link {
+      display: flex;
+      align-items: center;
+      padding: 0.75rem 1.5rem;
+      color: #6b7280;
+      transition: all 0.2s;
+      border-left: 3px solid transparent;
+    }
+
+    .nav-link:hover {
+      background: #f3f4f6;
+      color: #1f2937;
+    }
+
+    .dark .nav-link:hover {
+      background: #374151;
+      color: #f9fafb;
+    }
+
+    .nav-link.active {
+      background: #eff6ff;
+      color: #2563eb;
+      border-left-color: #2563eb;
+      font-weight: 600;
+    }
+
+    .dark .nav-link.active {
+      background: #1e3a8a;
+      color: #93c5fd;
+    }
+
+    .nav-link .icon {
+      margin-right: 0.75rem;
+      font-size: 1.25rem;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .spinning {
+      display: inline-block;
+      animation: spin 1s linear infinite;
+    }
+  </style>
+
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>

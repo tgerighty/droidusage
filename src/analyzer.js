@@ -3,11 +3,16 @@ const path = require('path');
 const Table = require('cli-table3');
 const chalk = require('chalk');
 const { format, parseISO, startOfDay, endOfDay, isWithinInterval, startOfHour, addHours } = require('date-fns');
+const TrendAnalyzer = require('./analyzers/TrendAnalyzer');
+const TopSessionsAnalyzer = require('./analyzers/TopSessionsAnalyzer');
 
 class FactoryUsageAnalyzer {
   constructor(sessionsDir) {
     this.sessionsDir = sessionsDir;
     this.logsDir = path.join(path.dirname(sessionsDir), 'logs');
+    this.batchSize = 10; // Number of sessions to process in parallel (balance between speed and memory)
+    this.trendAnalyzer = new TrendAnalyzer();
+    this.topSessionsAnalyzer = new TopSessionsAnalyzer();
     this.pricing = {
       anthropic: {
         'claude-3-5-sonnet-20241022': {
@@ -392,7 +397,7 @@ class FactoryUsageAnalyzer {
     return timestampMatch ? new Date(timestampMatch[1]) : null;
   }
 
-  async parseSession(sessionId) {
+  async parseSession(sessionId, countPrompts = true) {
     try {
       const settingsPath = path.join(this.sessionsDir, `${sessionId}.settings.json`);
       const logPath = path.join(this.sessionsDir, `${sessionId}.jsonl`);
@@ -400,115 +405,66 @@ class FactoryUsageAnalyzer {
       const settingsData = await fs.readFile(settingsPath, 'utf8');
       const settings = JSON.parse(settingsData);
       
-      // First, try to extract comprehensive data from log files
-      const logEntries = await this.parseLogEntriesForSession(sessionId);
-      
-      // Get session start time from the first log entry or settings timestamp
-      let sessionStart = null;
-      let model = 'unknown';
-      let aggregatedInputTokens = 0;
-      let aggregatedOutputTokens = 0;
-      let cacheCreationTokens = 0;
-      let cacheReadTokens = 0;
+      // Initialize with settings data
+      let sessionStart = settings.providerLockTimestamp;
+      let aggregatedInputTokens = settings.tokenUsage?.inputTokens || 0;
+      let aggregatedOutputTokens = settings.tokenUsage?.outputTokens || 0;
+      let cacheCreationTokens = settings.tokenUsage?.cacheCreationTokens || 0;
+      let cacheReadTokens = settings.tokenUsage?.cacheReadTokens || 0;
       let userPrompts = 0;
+      let model = 'unknown';
       
-      // Use log data as primary source
-      if (logEntries.length > 0) {
-        // Use first log entry timestamp as session start
-        sessionStart = logEntries[0].timestamp ?
-          logEntries[0].timestamp.toISOString() :
-          settings.providerLockTimestamp;
-
-        // Extract the most common model used in this session
-        const modelCounts = {};
-        logEntries.forEach(entry => {
-          if (entry.modelId) {
-            const modelName = this.normalizeModelName(entry.modelId);
-            modelCounts[modelName] = (modelCounts[modelName] || 0) + 1;
+      // Use shared log data if available (parsed once for all sessions)
+      if (this.sharedLogData && this.sharedLogData.has(sessionId)) {
+        const logData = this.sharedLogData.get(sessionId);
+        if (logData.inputTokens > 0) aggregatedInputTokens = Math.max(logData.inputTokens, aggregatedInputTokens);
+        if (logData.outputTokens > 0) aggregatedOutputTokens = Math.max(logData.outputTokens, aggregatedOutputTokens);
+        if (logData.cacheReadTokens > 0) cacheReadTokens = Math.max(logData.cacheReadTokens, cacheReadTokens);
+        if (logData.modelId) model = this.normalizeModelName(logData.modelId);
+      }
+      
+      // Parse session log file for timestamp and additional model info if needed
+      try {
+        const logData = await fs.readFile(logPath, 'utf8');
+        const firstLine = logData.split('\n')[0];
+        if (firstLine) {
+          const firstEntry = JSON.parse(firstLine);
+          if (firstEntry.timestamp && !sessionStart) {
+            sessionStart = firstEntry.timestamp;
           }
-        });
-
-        // Use the first model detected in the session (chronological order)
-        if (logEntries.length > 0) {
-          const firstModelEntry = logEntries.find(entry => entry.modelId);
-          if (firstModelEntry) {
-            model = this.normalizeModelName(firstModelEntry.modelId);
-
-            // Only infer provider if not already set (don't override existing provider settings)
-            if (!settings.providerLock || settings.providerLock === 'unknown') {
-              if (model.includes('glm')) {
-                settings.providerLock = 'zhipuai'; // GLM models use zhipuai/zai provider
-              } else if (model.includes('gpt')) {
-                settings.providerLock = 'openai'; // GPT models use openai provider
-              } else if (model.includes('claude')) {
-                settings.providerLock = 'anthropic'; // Claude models use anthropic provider
-              }
-            }
+          // Try to get model from first message if still unknown
+          if (model === 'unknown' && firstEntry.type === 'message' && firstEntry.message?.model) {
+            model = this.normalizeModelName(firstEntry.message.model);
           }
         }
-
-        // Aggregate tokens from log entries (streaming results)
-        let logCacheReadTokens = 0;
-        let logInputTokens = 0;
-        logEntries.forEach(entry => {
-          if (entry.outputTokens) aggregatedOutputTokens += entry.outputTokens;
-          if (entry.cacheReadInputTokens) logCacheReadTokens += entry.cacheReadInputTokens;
-          if (entry.inputTokens) logInputTokens += entry.inputTokens;
-        });
-
-        // Use settings data as fallback, but prefer log data when available
-        aggregatedInputTokens = logInputTokens > 0 ? logInputTokens : (settings.tokenUsage?.inputTokens || 0);
-        cacheCreationTokens = settings.tokenUsage?.cacheCreationTokens || 0;
-
-        // Use cache read tokens from logs if available, otherwise fall back to settings
-        cacheReadTokens = logCacheReadTokens > 0 ? logCacheReadTokens : (settings.tokenUsage?.cacheReadTokens || 0);
-
-        // Count user prompts from session conversation file
+      } catch (logError) {
+        // Log file doesn't exist or can't be read - use settings data
+      }
+      
+      // Fallback to provider-based model detection if still unknown
+      if (model === 'unknown' && settings.providerLock) {
+        switch (settings.providerLock) {
+          case 'anthropic':
+            model = 'claude-3-5-sonnet-20241022';
+            break;
+          case 'openai':
+            model = 'gpt-4o';
+            break;
+          case 'zhipuai':
+          case 'zai':
+          case 'fireworks':
+          case 'generic-chat-completion-api':
+            model = 'glm-4';
+            break;
+          default:
+            model = 'unknown';
+        }
+      }
+      
+      // Count user prompts from session conversation file (only if needed)
+      if (countPrompts) {
         userPrompts = await this.countUserPromptsInSession(sessionId);
       }
-      
-      // Fallback to settings if no log data available
-      if (logEntries.length === 0) {
-        // Get session start time from the first log entry or settings timestamp
-        try {
-          const logData = await fs.readFile(logPath, 'utf8');
-          const lines = logData.split('\n').filter(line => line.trim());
-          
-          // Look for first entry with a timestamp
-          for (const line of lines) {
-            try {
-              const logEntry = JSON.parse(line);
-              if (logEntry.timestamp) {
-                sessionStart = logEntry.timestamp;
-                break;
-              }
-            } catch (parseError) {
-              // Skip invalid JSON lines
-              continue;
-            }
-          }
-          
-          // If no timestamp found, try settings timestamp
-          if (!sessionStart && settings.providerLockTimestamp) {
-            sessionStart = settings.providerLockTimestamp;
-          }
-        } catch (logError) {
-          // Log file might not exist or be empty, try settings timestamp
-          if (settings.providerLockTimestamp) {
-            sessionStart = settings.providerLockTimestamp;
-          }
-        }
-        
-        // Fallback to provider assumptions for model
-        model = await this.extractModelFromLogs(logPath, settings.providerLock);
-        
-        // Use settings token data as fallback
-        aggregatedInputTokens = settings.tokenUsage?.inputTokens || 0;
-        aggregatedOutputTokens = settings.tokenUsage?.outputTokens || 0;
-      }
-      
-      // Count user prompts from session conversation file
-      userPrompts = await this.countUserPromptsInSession(sessionId);
 
       // Parse date with error handling
       let parsedDate = null;
@@ -542,6 +498,100 @@ class FactoryUsageAnalyzer {
       console.warn(`Warning: Could not parse session ${sessionId}: ${error.message}`);
       return null;
     }
+  }
+
+  // Parse shared log file once and build lookup map (much faster than parsing per-session)
+  async parseSharedLogOnce() {
+    try {
+      const logPath = path.join(this.logsDir, 'droid-log-single.log');
+      const logData = await fs.readFile(logPath, 'utf8');
+      const lines = logData.split('\n').filter(line => line.trim());
+      
+      const sessionData = new Map();
+      
+      for (const line of lines) {
+        try {
+          const entry = JSON.parse(line);
+          
+          if (!entry.sessionId) continue;
+          
+          if (!sessionData.has(entry.sessionId)) {
+            sessionData.set(entry.sessionId, {
+              inputTokens: 0,
+              outputTokens: 0,
+              cacheReadTokens: 0,
+              modelId: null
+            });
+          }
+          
+          const data = sessionData.get(entry.sessionId);
+          
+          // Extract model
+          if (!data.modelId && entry.modelId) {
+            data.modelId = entry.modelId;
+          }
+          
+          // Aggregate tokens
+          if (entry.inputTokens) data.inputTokens += entry.inputTokens;
+          if (entry.outputTokens) data.outputTokens += entry.outputTokens;
+          if (entry.cacheReadInputTokens) data.cacheReadTokens += entry.cacheReadInputTokens;
+        } catch (e) {
+          continue;
+        }
+      }
+      
+      return sessionData;
+    } catch (error) {
+      // Log file doesn't exist or can't be read
+      return new Map();
+    }
+  }
+
+  // NEW: Parse sessions in parallel batches for better performance
+  async parseSessionsBatch(sessionIds, countPrompts = false) {
+    const sessions = [];
+    const batchSize = this.batchSize;
+    const totalBatches = Math.ceil(sessionIds.length / batchSize);
+    
+    // Show progress for large datasets
+    const showProgress = sessionIds.length > 100 && !process.env.NODE_ENV?.includes('test');
+    
+    // Parse shared log file once for all sessions (huge performance win!)
+    if (showProgress) {
+      process.stderr.write('\rParsing shared log file...');
+    }
+    this.sharedLogData = await this.parseSharedLogOnce();
+    if (showProgress) {
+      process.stderr.write('\rParsing shared log file... ✓\n');
+    }
+    
+    // Process in batches to avoid overwhelming memory
+    for (let i = 0; i < sessionIds.length; i += batchSize) {
+      const batch = sessionIds.slice(i, i + batchSize);
+      const currentBatch = Math.floor(i / batchSize) + 1;
+      
+      if (showProgress) {
+        const progress = Math.round((currentBatch / totalBatches) * 100);
+        process.stderr.write(`\rProcessing sessions: ${progress}% (${i + batch.length}/${sessionIds.length})`);
+      }
+      
+      // Parse this batch in parallel
+      const batchResults = await Promise.all(
+        batch.map(sessionId => this.parseSession(sessionId, countPrompts))
+      );
+      
+      // Filter out null results and add to sessions array
+      sessions.push(...batchResults.filter(session => session !== null));
+    }
+    
+    if (showProgress) {
+      process.stderr.write(`\rProcessing sessions: 100% (${sessionIds.length}/${sessionIds.length}) ✓\n`);
+    }
+    
+    // Clear shared log data to free memory
+    this.sharedLogData = null;
+    
+    return sessions;
   }
 
   filterSessionsByDate(sessions, since, until) {
@@ -637,14 +687,9 @@ class FactoryUsageAnalyzer {
 
   async getDailyUsage(options = {}) {
     const sessionIds = await this.getSessionFiles();
-    const sessions = [];
     
-    for (const sessionId of sessionIds) {
-      const session = await this.parseSession(sessionId);
-      if (session) {
-        sessions.push(session);
-      }
-    }
+    // Process sessions in parallel batches (don't need prompt counting for daily report)
+    const sessions = await this.parseSessionsBatch(sessionIds, false);
     
     const filteredSessions = this.filterSessionsByDate(sessions, options.since, options.until);
     const dailyData = this.groupSessionsByDate(filteredSessions);
@@ -658,14 +703,9 @@ class FactoryUsageAnalyzer {
 
   async getSessionUsage(options = {}) {
     const sessionIds = await this.getSessionFiles();
-    const sessions = [];
     
-    for (const sessionId of sessionIds) {
-      const session = await this.parseSession(sessionId);
-      if (session) {
-        sessions.push(session);
-      }
-    }
+    // Process sessions in parallel batches (don't need prompt counting for session report)
+    const sessions = await this.parseSessionsBatch(sessionIds, false);
     
     const filteredSessions = this.filterSessionsByDate(sessions, options.since, options.until);
     
@@ -711,7 +751,7 @@ class FactoryUsageAnalyzer {
         acc.totalCost += item.cost || 0;
         acc.totalSessions += item.sessions.length;
         acc.totalActiveTime += item.sessions.reduce((time, session) => time + session.activeTimeMs, 0);
-        acc.totalPrompts += item.userPrompts || 0;
+        acc.totalPrompts += item.userPrompts || item.userInteractions || 0;
       } else {
         // This is a session
         acc.totalTokens += item.totalTokens || 0;
@@ -801,14 +841,10 @@ class FactoryUsageAnalyzer {
 
   async getBlockUsage(options = {}) {
     const sessionIds = await this.getSessionFiles();
-    const sessions = [];
-
-    for (const sessionId of sessionIds) {
-      const session = await this.parseSession(sessionId);
-      if (session && session.date) {
-        sessions.push(session);
-      }
-    }
+    
+    // Process sessions in parallel batches (WITH prompt counting for blocks report)
+    const allSessions = await this.parseSessionsBatch(sessionIds, true);
+    const sessions = allSessions.filter(session => session && session.date);
 
     const filteredSessions = this.filterSessionsByDate(sessions, options.since, options.until);
     const blockData = this.groupSessionsByBlock(filteredSessions);
@@ -817,6 +853,73 @@ class FactoryUsageAnalyzer {
       type: 'blocks',
       data: blockData,
       summary: this.calculateSummary(blockData)
+    };
+  }
+
+  async getTopSessions(options = {}) {
+    const sessionIds = await this.getSessionFiles();
+    
+    // Process sessions in parallel batches
+    const allSessions = await this.parseSessionsBatch(sessionIds, false);
+    const sessions = allSessions.filter(session => session && session.date);
+    const filteredSessions = this.filterSessionsByDate(sessions, options.since, options.until);
+    
+    // Add costs to sessions
+    const sessionsWithCost = filteredSessions.map(session => ({
+      ...session,
+      cost: this.calculateCost(session),
+      totalTokens: session.inputTokens + session.outputTokens + session.cacheCreationTokens + session.cacheReadTokens
+    }));
+    
+    // Get top sessions based on criteria
+    let topSessions;
+    const by = options.by || 'cost';
+    const limit = options.limit || 10;
+    
+    switch (by) {
+      case 'tokens':
+        topSessions = this.topSessionsAnalyzer.getTopByTokens(sessionsWithCost, limit);
+        break;
+      case 'duration':
+        topSessions = this.topSessionsAnalyzer.getTopByDuration(sessionsWithCost, limit);
+        break;
+      case 'inefficient':
+        topSessions = this.topSessionsAnalyzer.getInefficient(sessionsWithCost, limit);
+        break;
+      case 'outliers':
+        topSessions = this.topSessionsAnalyzer.getOutliers(sessionsWithCost);
+        break;
+      case 'cost':
+      default:
+        topSessions = this.topSessionsAnalyzer.getTopByCost(sessionsWithCost, limit);
+    }
+    
+    return {
+      type: 'top',
+      by: by,
+      data: topSessions,
+      summary: this.topSessionsAnalyzer.getSummaryStats(topSessions),
+      allSessionsStats: this.calculateSummary(sessionsWithCost)
+    };
+  }
+
+  async getTrendsAnalysis(options = {}) {
+    // Get current period data
+    const currentResults = await this.getDailyUsage(options);
+    
+    // Get previous period data
+    const previousPeriod = this.trendAnalyzer.getPreviousPeriod(options.since, options.until);
+    const previousResults = await this.getDailyUsage(previousPeriod);
+    
+    // Compare periods
+    const trends = this.trendAnalyzer.comparePeriods(currentResults.summary, previousResults.summary);
+    
+    return {
+      type: 'trends',
+      current: currentResults,
+      previous: previousResults,
+      trends: trends,
+      patterns: this.trendAnalyzer.detectPatterns(currentResults.data.flatMap(d => d.sessions || []))
     };
   }
 
@@ -957,14 +1060,97 @@ class FactoryUsageAnalyzer {
     console.log(table.toString());
   }
 
-  outputSummary(summary) {
+  outputSummary(summary, trends = null) {
     console.log();
     console.log(chalk.bold('Summary:'));
-    console.log(`  Total Sessions: ${this.formatNumber(summary.totalSessions)}`);
-    console.log(`  Total Tokens: ${this.formatNumber(summary.totalTokens)}`);
-    console.log(`  Total Prompts: ${this.formatNumber(summary.totalPrompts)}`);
-    console.log(`  Total Cost: ${this.formatCost(summary.totalCost)}`);
-    console.log(`  Total Active Time: ${this.formatTime(summary.totalActiveTime)}`);
+    
+    if (summary.totalSessions !== undefined) {
+      console.log(`  Total Sessions: ${this.formatNumber(summary.totalSessions || 0)}`);
+    }
+    if (summary.totalTokens !== undefined) {
+      console.log(`  Total Tokens: ${this.formatNumber(summary.totalTokens || 0)}`);
+    }
+    if (summary.totalPrompts !== undefined) {
+      console.log(`  Total Prompts: ${this.formatNumber(summary.totalPrompts || 0)}`);
+    }
+    if (summary.totalCost !== undefined) {
+      console.log(`  Total Cost: ${this.formatCost(summary.totalCost || 0)}`);
+    }
+    if (summary.totalActiveTime !== undefined) {
+      console.log(`  Total Active Time: ${this.formatTime(summary.totalActiveTime || 0)}`);
+    }
+    if (summary.avgCost !== undefined) {
+      console.log(`  Avg Cost/Session: ${this.formatCost(summary.avgCost || 0)}`);
+    }
+    if (summary.avgTokens !== undefined) {
+      console.log(`  Avg Tokens/Session: ${this.formatNumber(summary.avgTokens || 0)}`);
+    }
+    if (summary.avgEfficiency !== undefined) {
+      console.log(`  Avg Efficiency Score: ${summary.avgEfficiency.toFixed(0) || 0}/100`);
+    }
+    
+    if (trends) {
+      console.log();
+      console.log(chalk.bold('Trends (vs previous period):'));
+      console.log(`  Cost: ${this.formatCost(trends.cost.value)} ${this.trendAnalyzer.formatTrendColored(trends.cost, chalk, true)}`);
+      console.log(`  Tokens: ${this.formatNumber(trends.tokens.value)} ${this.trendAnalyzer.formatTrendColored(trends.tokens, chalk)}`);
+      console.log(`  Sessions: ${this.formatNumber(trends.sessions.value)} ${this.trendAnalyzer.formatTrendColored(trends.sessions, chalk)}`);
+      console.log(`  Avg Cost/Session: ${this.formatCost(trends.avgCostPerSession.value)} ${this.trendAnalyzer.formatTrendColored(trends.avgCostPerSession, chalk, true)}`);
+    }
+  }
+
+  outputTopSessionsTable(data, by) {
+    const table = new Table({
+      head: [
+        chalk.cyan('Session ID'),
+        chalk.cyan('Date'),
+        chalk.cyan('Model'),
+        chalk.cyan('Tokens'),
+        chalk.cyan('Cost'),
+        chalk.cyan('Duration'),
+        chalk.cyan('Efficiency'),
+        chalk.cyan('Notes')
+      ],
+      style: {
+        head: ['bold'],
+        border: []
+      }
+    });
+    
+    data.forEach(session => {
+      const effStatus = session.efficiency ? session.efficiency.status : 'unknown';
+      const effColor = effStatus === 'good' ? chalk.green : effStatus === 'poor' ? chalk.red : chalk.yellow;
+      const effDisplay = effColor(effStatus.toUpperCase());
+      
+      const notes = [];
+      if (session.warnings && session.warnings.length > 0) {
+        notes.push(...session.warnings);
+      }
+      
+      table.push([
+        session.id.substring(0, 8) + '...',
+        session.date ? format(session.date, 'MM-dd HH:mm') : 'Unknown',
+        session.model,
+        this.formatNumber(session.totalTokens),
+        this.formatCost(session.cost),
+        this.formatTime(session.activeTimeMs),
+        effDisplay,
+        notes.join('\n') || ''
+      ]);
+    });
+    
+    console.log(`\n${chalk.bold(`Top ${data.length} Sessions by ${by.charAt(0).toUpperCase() + by.slice(1)}:`)}\n`);
+    console.log(table.toString());
+    
+    // Show recommendations if any
+    const recs = data.flatMap(s => s.recommendations || []);
+    if (recs.length > 0) {
+      console.log(`\n${chalk.bold('💡 Recommendations:')}`);
+      const uniqueRecs = [...new Set(recs)];
+      uniqueRecs.slice(0, 5).forEach((rec, i) => {
+        console.log(`   ${i + 1}. ${rec}`);
+      });
+    }
   }
 
   outputResults(results, asJson = false) {
@@ -984,9 +1170,11 @@ class FactoryUsageAnalyzer {
       this.outputSessionTable(results.data);
     } else if (results.type === 'blocks') {
       this.outputBlockTable(results.data);
+    } else if (results.type === 'top') {
+      this.outputTopSessionsTable(results.data, results.by);
     }
 
-    this.outputSummary(results.summary);
+    this.outputSummary(results.summary, results.trends);
   }
 }
 
